@@ -10,6 +10,7 @@
 #include "config.h"
 #include "power_save_timer.h"
 #include "axp2101.h"
+#include "qmi8658.h"
 #include "i2c_device.h"
 
 #include <esp_log.h>
@@ -126,6 +127,8 @@ private:
     esp_io_expander_handle_t io_expander = NULL;
     PowerSaveTimer* power_save_timer_;
     bool screen_off_ = false;
+    Qmi8658* imu_ = nullptr;
+    esp_timer_handle_t orientation_timer_ = nullptr;
 
     void InitializePowerSaveTimer() {
         power_save_timer_ = new PowerSaveTimer(-1, 60, 300);
@@ -180,6 +183,34 @@ private:
     void InitializeAxp2101() {
         ESP_LOGI(TAG, "Init AXP2101");
         pmic_ = new Pmic(codec_i2c_bus_, 0x34);
+    }
+
+    void InitializeImu() {
+        ESP_LOGI(TAG, "Init QMI8658");
+        imu_ = new Qmi8658(codec_i2c_bus_, QMI8658_I2C_ADDR);
+    }
+
+    static void OrientationTimerThunk(void* arg) {
+        static_cast<WaveshareEsp32s3TouchAMOLED1inch8*>(arg)->OnOrientationTick();
+    }
+
+    void OnOrientationTick() {
+        if (screen_off_) return;
+        float x, y, z;
+        imu_->ReadAccel(x, y, z);
+        ESP_LOGI(TAG, "accel x=%+.2f y=%+.2f z=%+.2f", x, y, z);
+    }
+
+    void InitializeOrientationTimer() {
+        const esp_timer_create_args_t args = {
+            .callback = &OrientationTimerThunk,
+            .arg = this,
+            .dispatch_method = ESP_TIMER_TASK,
+            .name = "orientation",
+            .skip_unhandled_events = true,
+        };
+        ESP_ERROR_CHECK(esp_timer_create(&args, &orientation_timer_));
+        ESP_ERROR_CHECK(esp_timer_start_periodic(orientation_timer_, 1000 * 1000)); // 1 Hz for sanity
     }
 
     void InitializeSpi() {
@@ -325,8 +356,10 @@ public:
         InitializeCodecI2c();
         InitializeTca9554();
         InitializeAxp2101();
+        InitializeImu();
         InitializeSpi();
         InitializeSH8601Display();
+        InitializeOrientationTimer();
         InitializeTouch();
         InitializeButtons();
         InitializeTools();
