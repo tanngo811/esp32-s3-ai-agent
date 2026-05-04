@@ -7,6 +7,7 @@
 #include <esp_log.h>
 #include <esp_sleep.h>
 #include <esp_lvgl_port.h>
+#include <cinttypes>
 
 #define TAG "SleepTimer"
 
@@ -99,9 +100,12 @@ void SleepTimer::CheckTimer() {
                     esp_light_sleep_start();
                     lvgl_port_resume();
 
-                    auto wakeup_reason = esp_sleep_get_wakeup_cause();
-                    ESP_LOGI(TAG, "Wake up from light sleep, wakeup_reason: %d", wakeup_reason);
-                    if (wakeup_reason != ESP_SLEEP_WAKEUP_TIMER) {
+                    // ESP-IDF v6.0: esp_sleep_get_wakeup_cause() is deprecated;
+                    // esp_sleep_get_wakeup_causes() returns a bitmap of all
+                    // causes that fired simultaneously.
+                    uint32_t wakeup_causes = esp_sleep_get_wakeup_causes();
+                    ESP_LOGI(TAG, "Wake up from light sleep, wakeup_causes: 0x%" PRIx32, wakeup_causes);
+                    if (!(wakeup_causes & (1U << ESP_SLEEP_WAKEUP_TIMER))) {
                         break;
                     }
                 }
