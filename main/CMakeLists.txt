@@ -53,9 +53,6 @@ list(APPEND SOURCES
     "drivers/knob.cc"
     "drivers/sy6970.cc"
     "net/afsk_demod.cc"
-    "net/dual_network_board.cc"
-    "net/ml307_board.cc"
-    "net/nt26_board.cc"
     "platform/power_save_timer.cc"
     "platform/press_to_talk_mcp_tool.cc"
     "platform/sleep_timer.cc"
@@ -212,7 +209,6 @@ endif()
 file(GLOB COMMON_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/assets/common/*.ogg)
 
 list(APPEND SOURCES "drivers/esp_video.cc"
-                    "net/rndis_board.cc"
                     "drivers/esp32_camera.cc")
 
 idf_component_register(SRCS ${SOURCES}
