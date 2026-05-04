@@ -17,7 +17,7 @@ namespace {
 Qmi8658::Qmi8658(i2c_master_bus_handle_t i2c_bus, uint8_t addr)
     : I2cDevice(i2c_bus, addr) {
     WriteReg(REG_CTRL1, 0x40); // address auto-increment; I2C interface
-    WriteReg(REG_CTRL2, 0x95); // accel ±2g, 250 Hz ODR
+    WriteReg(REG_CTRL2, 0x05); // accel ±2g, 250 Hz ODR
     WriteReg(REG_CTRL5, 0x00); // disable on-chip LPF (we use software hysteresis)
     WriteReg(REG_CTRL7, 0x01); // enable accel only
 
