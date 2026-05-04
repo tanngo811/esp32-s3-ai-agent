@@ -51,6 +51,7 @@ list(APPEND SOURCES
     "drivers/button.cc"
     "drivers/i2c_device.cc"
     "drivers/knob.cc"
+    "drivers/qmi8658.cc"
     "drivers/sy6970.cc"
     "net/afsk_demod.cc"
     "platform/power_save_timer.cc"

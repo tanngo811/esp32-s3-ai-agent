@@ -10,9 +10,12 @@
 #include "config.h"
 #include "power_save_timer.h"
 #include "axp2101.h"
+#include "qmi8658.h"
 #include "i2c_device.h"
 
 #include <esp_log.h>
+#include <cmath>
+#include <algorithm>
 #include <esp_lcd_panel_vendor.h>
 #include <driver/i2c_master.h>
 #include <driver/spi_master.h>
@@ -92,8 +95,24 @@ public:
         SpiLcdDisplay::SetupUI();
 
         DisplayLockGuard lock(this);
-        lv_obj_set_style_pad_left(status_bar_, LV_HOR_RES * 0.1, 0);
-        lv_obj_set_style_pad_right(status_bar_, LV_HOR_RES * 0.1, 0);
+        UpdateStatusBarPad();
+        lv_display_add_event_cb(lv_display_get_default(),
+                                &CustomLcdDisplay::OnResolutionChanged,
+                                LV_EVENT_RESOLUTION_CHANGED,
+                                this);
+    }
+
+private:
+    void UpdateStatusBarPad() {
+        int hor = lv_display_get_horizontal_resolution(lv_display_get_default());
+        lv_obj_set_style_pad_left(status_bar_, hor * 0.1, 0);
+        lv_obj_set_style_pad_right(status_bar_, hor * 0.1, 0);
+    }
+
+    static void OnResolutionChanged(lv_event_t* e) {
+        auto self = static_cast<CustomLcdDisplay*>(lv_event_get_user_data(e));
+        DisplayLockGuard lock(self);
+        self->UpdateStatusBarPad();
     }
 };
 
@@ -126,6 +145,11 @@ private:
     esp_io_expander_handle_t io_expander = NULL;
     PowerSaveTimer* power_save_timer_;
     bool screen_off_ = false;
+    Qmi8658* imu_ = nullptr;
+    esp_timer_handle_t orientation_timer_ = nullptr;
+    lv_display_rotation_t current_rotation_ = LV_DISPLAY_ROTATION_0;
+    lv_display_rotation_t pending_rotation_ = LV_DISPLAY_ROTATION_0;
+    int pending_count_ = 0;
 
     void InitializePowerSaveTimer() {
         power_save_timer_ = new PowerSaveTimer(-1, 60, 300);
@@ -180,6 +204,82 @@ private:
     void InitializeAxp2101() {
         ESP_LOGI(TAG, "Init AXP2101");
         pmic_ = new Pmic(codec_i2c_bus_, 0x34);
+    }
+
+    void InitializeImu() {
+        ESP_LOGI(TAG, "Init QMI8658");
+        imu_ = new Qmi8658(codec_i2c_bus_, QMI8658_I2C_ADDR);
+    }
+
+    static void OrientationTimerThunk(void* arg) {
+        static_cast<WaveshareEsp32s3TouchAMOLED1inch8*>(arg)->OnOrientationTick();
+    }
+
+    void OnOrientationTick() {
+        if (screen_off_) return;
+
+        float x, y, z;
+        imu_->ReadAccel(x, y, z);
+
+        const float ax = std::fabs(x);
+        const float ay = std::fabs(y);
+        const float az = std::fabs(z);
+
+        // Need a clear gravity direction. Reject if the largest axis is weak
+        // (board being shaken, free-falling, or held at ~45°).
+        const float dominant = std::max(ax, std::max(ay, az));
+        if (dominant < 0.6f) return;
+
+        // Z dominant => face up / face down. Hold current orientation.
+        if (az >= ax && az >= ay) return;
+
+        // Map dominant horizontal axis + sign to one of four LVGL rotations.
+        // Hardware: USB-C-right is the natural portrait orientation.
+        lv_display_rotation_t candidate;
+        if (ay >= ax) {
+            candidate = (y > 0) ? LV_DISPLAY_ROTATION_270  // USB-C down
+                                : LV_DISPLAY_ROTATION_90;  // USB-C up
+        } else {
+            candidate = (x > 0) ? LV_DISPLAY_ROTATION_0    // USB-C right
+                                : LV_DISPLAY_ROTATION_180; // USB-C left
+        }
+
+        if (candidate == current_rotation_) {
+            pending_count_ = 0;
+            return;
+        }
+        if (candidate == pending_rotation_) {
+            ++pending_count_;
+        } else {
+            pending_rotation_ = candidate;
+            pending_count_ = 1;
+        }
+
+        if (pending_count_ >= 3) { // ~300 ms hold at 10 Hz
+            DisplayLockGuard lock(GetDisplay());
+            lv_display_set_rotation(lv_display_get_default(), pending_rotation_);
+            current_rotation_ = pending_rotation_;
+            pending_count_ = 0;
+            ESP_LOGI(TAG, "rotation -> %d", static_cast<int>(current_rotation_));
+        }
+    }
+
+    void InitializeOrientationTimer() {
+        // Seed from whatever the display reports right now so the first tick
+        // doesn't fight the boot orientation.
+        current_rotation_ = lv_display_get_rotation(lv_display_get_default());
+        pending_rotation_ = current_rotation_;
+        pending_count_ = 0;
+
+        const esp_timer_create_args_t args = {
+            .callback = &OrientationTimerThunk,
+            .arg = this,
+            .dispatch_method = ESP_TIMER_TASK,
+            .name = "orientation",
+            .skip_unhandled_events = true,
+        };
+        ESP_ERROR_CHECK(esp_timer_create(&args, &orientation_timer_));
+        ESP_ERROR_CHECK(esp_timer_start_periodic(orientation_timer_, 100 * 1000)); // 10 Hz
     }
 
     void InitializeSpi() {
@@ -325,8 +425,10 @@ public:
         InitializeCodecI2c();
         InitializeTca9554();
         InitializeAxp2101();
+        InitializeImu();
         InitializeSpi();
         InitializeSH8601Display();
+        InitializeOrientationTimer();
         InitializeTouch();
         InitializeButtons();
         InitializeTools();

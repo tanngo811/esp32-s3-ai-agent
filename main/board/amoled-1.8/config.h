@@ -38,4 +38,6 @@
 
 #define DISPLAY_BACKLIGHT_PIN GPIO_NUM_NC
 #define DISPLAY_BACKLIGHT_OUTPUT_INVERT false
+
+#define QMI8658_I2C_ADDR 0x6B   // alt 0x6A per ADDR pin
 #endif // _BOARD_CONFIG_H_
