@@ -29,39 +29,40 @@ set(SOURCES "audio/audio_codec.cc"
             "protocols/protocol.cc"
             "protocols/mqtt_protocol.cc"
             "protocols/websocket_protocol.cc"
-            "mcp_server.cc"
-            "system_info.cc"
-            "application.cc"
-            "ota.cc"
-            "settings.cc"
-            "device_state_machine.cc"
-            "assets.cc"
-            "main.cc"
+            "core/mcp_server.cc"
+            "core/system_info.cc"
+            "core/application.cc"
+            "core/ota.cc"
+            "core/settings.cc"
+            "core/device_state_machine.cc"
+            "core/assets.cc"
+            "core/main.cc"
             )
 
-set(INCLUDE_DIRS "." "display" "display/lvgl_display" "display/lvgl_display/jpg" "audio" "audio/demuxer" "protocols")
+set(INCLUDE_DIRS "." "core" "drivers" "net" "platform" "board" "board/amoled-1.8"
+                 "display" "display/lvgl_display" "display/lvgl_display/jpg"
+                 "audio" "audio/demuxer" "protocols")
 
-# Add board common files
+# Add board base + driver/net/platform sources
 list(APPEND SOURCES
-    "boards/common/board.cc"
-    "boards/common/wifi_board.cc"
-    "boards/common/ml307_board.cc"
-    "boards/common/nt26_board.cc"
-    "boards/common/dual_network_board.cc"
-    "boards/common/adc_battery_monitor.cc"
-    "boards/common/afsk_demod.cc"
-    "boards/common/axp2101.cc"
-    "boards/common/backlight.cc"
-    "boards/common/button.cc"
-    "boards/common/i2c_device.cc"
-    "boards/common/knob.cc"
-    "boards/common/power_save_timer.cc"
-    "boards/common/press_to_talk_mcp_tool.cc"
-    "boards/common/sleep_timer.cc"
-    "boards/common/sy6970.cc"
-    "boards/common/system_reset.cc"
+    "board/board.cc"
+    "board/wifi_board.cc"
+    "drivers/adc_battery_monitor.cc"
+    "drivers/axp2101.cc"
+    "drivers/backlight.cc"
+    "drivers/button.cc"
+    "drivers/i2c_device.cc"
+    "drivers/knob.cc"
+    "drivers/sy6970.cc"
+    "net/afsk_demod.cc"
+    "net/dual_network_board.cc"
+    "net/ml307_board.cc"
+    "net/nt26_board.cc"
+    "platform/power_save_timer.cc"
+    "platform/press_to_talk_mcp_tool.cc"
+    "platform/sleep_timer.cc"
+    "platform/system_reset.cc"
 )
-list(APPEND INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/boards/common)
 
 
 idf_build_get_property(build_components BUILD_COMPONENTS)
@@ -85,8 +86,8 @@ set(BUILTIN_ICON_FONT font_awesome_30_4)
 set(DEFAULT_EMOJI_COLLECTION twemoji_64)
 
 file(GLOB BOARD_SOURCES
-    ${CMAKE_CURRENT_SOURCE_DIR}/boards/${MANUFACTURER}/${BOARD_TYPE}/*.cc
-    ${CMAKE_CURRENT_SOURCE_DIR}/boards/${MANUFACTURER}/${BOARD_TYPE}/*.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/board/amoled-1.8/*.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/board/amoled-1.8/*.c
 )
 list(APPEND SOURCES ${BOARD_SOURCES})
 
@@ -101,7 +102,7 @@ list(APPEND SOURCES "audio/wake_words/afe_wake_word.cc"
 
 # Auto Select Additional Sources
 if (CONFIG_USE_ESP_BLUFI_WIFI_PROVISIONING)
-    list(APPEND SOURCES "boards/common/blufi.cpp")
+    list(APPEND SOURCES "net/blufi.cpp")
 endif ()
 # Select language directory according to Kconfig
 if(CONFIG_LANGUAGE_ZH_CN)
@@ -212,9 +213,9 @@ endif()
 
 file(GLOB COMMON_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/assets/common/*.ogg)
 
-list(APPEND SOURCES "boards/common/esp_video.cc"
-                    "boards/common/rndis_board.cc"
-                    "boards/common/esp32_camera.cc")
+list(APPEND SOURCES "drivers/esp_video.cc"
+                    "net/rndis_board.cc"
+                    "drivers/esp32_camera.cc")
 
 idf_component_register(SRCS ${SOURCES}
                     EMBED_FILES ${LANG_SOUNDS} ${COMMON_SOUNDS}
