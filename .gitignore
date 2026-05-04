@@ -1,5 +1,6 @@
 tmp/
-components/
+components/*
+!components/json/
 managed_components/
 build/
 dist/
