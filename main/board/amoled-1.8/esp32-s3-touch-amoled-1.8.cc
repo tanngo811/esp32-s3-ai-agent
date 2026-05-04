@@ -93,8 +93,9 @@ public:
         SpiLcdDisplay::SetupUI();
 
         DisplayLockGuard lock(this);
-        lv_obj_set_style_pad_left(status_bar_, LV_HOR_RES * 0.1, 0);
-        lv_obj_set_style_pad_right(status_bar_, LV_HOR_RES * 0.1, 0);
+        int hor = lv_display_get_horizontal_resolution(lv_display_get_default());
+        lv_obj_set_style_pad_left(status_bar_, hor * 0.1, 0);
+        lv_obj_set_style_pad_right(status_bar_, hor * 0.1, 0);
     }
 };
 
