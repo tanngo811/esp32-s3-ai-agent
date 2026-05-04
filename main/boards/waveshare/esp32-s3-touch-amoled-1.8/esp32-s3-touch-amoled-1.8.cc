@@ -125,6 +125,7 @@ private:
     CustomBacklight* backlight_;
     esp_io_expander_handle_t io_expander = NULL;
     PowerSaveTimer* power_save_timer_;
+    bool screen_off_ = false;
 
     void InitializePowerSaveTimer() {
         power_save_timer_ = new PowerSaveTimer(-1, 60, 300);
@@ -195,6 +196,10 @@ private:
 
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
+            if (screen_off_) {
+                SetScreenOff(false);
+                return;
+            }
             auto& app = Application::GetInstance();
             if (app.GetDeviceState() == kDeviceStateStarting) {
                 EnterWifiConfigMode();
@@ -202,6 +207,20 @@ private:
             }
             app.ToggleChatState();
         });
+        boot_button_.OnDoubleClick([this]() {
+            SetScreenOff(!screen_off_);
+        });
+    }
+
+    void SetScreenOff(bool off) {
+        screen_off_ = off;
+        if (off) {
+            GetBacklight()->SetBrightness(0);
+            GetDisplay()->SetPowerSaveMode(true);
+        } else {
+            GetDisplay()->SetPowerSaveMode(false);
+            GetBacklight()->RestoreBrightness();
+        }
     }
 
     void InitializeSH8601Display() {
